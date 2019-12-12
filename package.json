@@ -1,0 +1,16 @@
+{
+  "name": "runelite-github-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "tsc && probot run ./lib/index.js"
+  },
+  "author": "Abex",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "probot": "^9.6.6",
+    "typescript": "^3.7.3"
+  },
+  "devDependencies": {
+    "smee-client": "^1.1.0"
+  }
+}
