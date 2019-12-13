@@ -12,7 +12,7 @@ if (process.env.TEAM_TOKEN) {
 }
 
 export = (app: Application) => {
-	app.on(['pull_request.opened', 'pull_request.synchronized', 'pull_request.reopened'], async context => {
+	app.on(['pull_request.opened', 'pull_request.synchronize', 'pull_request.reopened'], async context => {
 		const github = context.github;
 
 		let { data: labelList } = await github.issues.listLabelsOnIssue(context.issue());
