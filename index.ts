@@ -25,9 +25,6 @@ export = (app: Application) => {
 		let files = (await github.pulls.listFiles(context.issue()))
 			.data
 			.filter(f => f.filename.startsWith("plugins/"));
-		if (files.length < 0) {
-			return;
-		}
 
 		let difftext = (await Promise.all(files.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
@@ -66,6 +63,8 @@ export = (app: Application) => {
 
 		if (difftext && !labels.has(PLUGIN_CHANGE)) {
 			await github.issues.addLabels(context.issue({ labels: [PLUGIN_CHANGE] }));
+		} else if (!difftext && labels.has(PLUGIN_CHANGE)) {
+			await github.issues.removeLabel(context.issue({ name: PLUGIN_CHANGE }));
 		}
 
 		let marker = "<!-- rlphc -->";
@@ -74,7 +73,7 @@ export = (app: Application) => {
 			.data.find(c => c.body.startsWith(marker));
 		if (sticky) {
 			github.issues.updateComment(context.issue({ comment_id: sticky.id, body }));
-		} else {
+		} else if (difftext) {
 			github.issues.createComment(context.issue({ body }));
 		}
 	});
