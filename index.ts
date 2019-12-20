@@ -56,6 +56,12 @@ export = (app: Application) => {
 				return `\`${pluginName}\`: https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit}`;
 			} else if (file.status == "added") {
 				return `New plugin \`${pluginName}\`: https://github.com/${user}/${repo}/tree/${newPlugin.commit}`;
+			} else if (file.status == "renamed") {
+				let oldPluginName = ((file as any).previous_filename as string).replace("plugins/", "");
+				let oldPlugin = readKV(await github.request(`https://github.com/${context.repo().owner}/${context.repo().repo}/raw/master/plugins/${oldPluginName}`));
+				let oldPluginURL = extractURL(oldPlugin.repository);
+				return `\`${oldPluginName}\` renamed to \`${pluginName}\`; this will cause all current installs to become uninstalled.
+https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit}`;
 			} else {
 				return `What is a \`${file.status}\`?`;
 			}
