@@ -114,7 +114,7 @@ https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin
 			if (labels.has(READY_TO_MERGE)) {
 				await github.issues.removeLabel(context.issue({ name: READY_TO_MERGE }));
 			}
-		} else {
+		} else if (Object.keys(reviewStates).length != 0) {
 			if (!labels.has(READY_TO_MERGE)) {
 				await github.issues.addLabels(context.issue({ labels: [READY_TO_MERGE] }));
 			}
