@@ -1,14 +1,19 @@
-import { Application, Octokit } from 'probot'
+import { Application, ProbotOctokit } from "probot";
+import { OctokitResponse } from "@octokit/types";
+type Octokit = InstanceType<typeof ProbotOctokit>;
 
 const PLUGIN_CHANGE = "plugin change";
 const READY_TO_MERGE = "ready to merge";
 
-const TEAM = ~~process.env.TEAM!;
+const TEAM = {
+	org: "runelite",
+	team_slug: "plugin-approvers",
+};
 
 // If you run the app outside of an org it can't get to the org's teams
 let globalTeamGithub : Octokit | undefined;
 if (process.env.TEAM_TOKEN) {
-	globalTeamGithub = new Octokit({auth: process.env.TEAM_TOKEN});
+	globalTeamGithub = new ProbotOctokit({auth: {token: process.env.TEAM_TOKEN}});
 }
 
 export = (app: Application) => {
@@ -22,7 +27,7 @@ export = (app: Application) => {
 			github.issues.removeLabel(context.issue({ name: READY_TO_MERGE }));
 		}
 
-		let files = (await github.pulls.listFiles(context.issue()))
+		let files = (await github.pulls.listFiles(context.pullRequest()))
 			.data
 			.filter(f => f.filename.startsWith("plugins/"));
 
@@ -31,7 +36,7 @@ export = (app: Application) => {
 			if (file.status == "removed") {
 				return `Removed \`${pluginName}\` plugin`;
 			}
-			let readKV = (res: Octokit.Response<string>) => res.data.split("\n")
+			let readKV = (res: OctokitResponse<string>) => res.data.split("\n")
 				.map(i => /([^=]+)=(.*)/.exec(i))
 				.filter(i => i)
 				.reduce((acc: { [key: string]: string }, val) => {
@@ -93,10 +98,10 @@ https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin
 
 		if (!labels.has(PLUGIN_CHANGE)) return;
 
-		let { data: reviews } = await github.pulls.listReviews(context.issue());
+		let { data: reviews } = await github.pulls.listReviews(context.pullRequest());
 		if (reviews.length <= 0) return;
 
-		let { data: memberList } = await teamGithub.teams.listMembers({ team_id: TEAM });
+		let { data: memberList } = await teamGithub.teams.listMembersInOrg(TEAM);
 		let members = new Set(memberList.map(m => m.login));
 
 		let reviewStates: { [key: string]: boolean } = {};
@@ -110,7 +115,7 @@ https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin
 		let unapproved = Object.keys(reviewStates).filter(k => !reviewStates[k]);
 
 		if (unapproved.length > 0) {
-			console.log(`Unapproved for #${context.issue().number}: ${unapproved}`);
+			console.log(`Unapproved for #${context.issue().issue_number}: ${unapproved}`);
 			if (labels.has(READY_TO_MERGE)) {
 				await github.issues.removeLabel(context.issue({ name: READY_TO_MERGE }));
 			}

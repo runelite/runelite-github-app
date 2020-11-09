@@ -7,8 +7,8 @@
   "author": "Abex",
   "license": "BSD-2-Clause",
   "dependencies": {
-    "probot": "^9.6.6",
-    "typescript": "^3.7.3"
+    "probot": "^10.10.1",
+    "typescript": "^3.9.3"
   },
   "devDependencies": {
     "smee-client": "^1.1.0"

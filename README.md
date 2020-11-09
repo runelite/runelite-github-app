@@ -3,11 +3,6 @@
 
 https://probot.github.io/docs/configuration/
 
-Add a github team to the .env
-```
-TEAM=12345654
-```
-
 If your app cannot access the team, add a personal api key with it
 ```
 TEAM_TOKEN=bk15b981ubd4jbd31b958j154f
