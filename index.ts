@@ -83,9 +83,9 @@ https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin
 		let sticky = (await github.issues.listComments(context.issue()))
 			.data.find(c => c.body.startsWith(marker));
 		if (sticky) {
-			github.issues.updateComment(context.issue({ comment_id: sticky.id, body }));
+			await github.issues.updateComment(context.issue({ comment_id: sticky.id, body }));
 		} else if (difftext) {
-			github.issues.createComment(context.issue({ body }));
+			await github.issues.createComment(context.issue({ body }));
 		}
 	});
 
