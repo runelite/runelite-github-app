@@ -1,8 +1,10 @@
 import { Application, ProbotOctokit } from "probot";
-import { OctokitResponse } from "@octokit/types";
+import { OctokitResponse, PullsListFilesResponseData } from "@octokit/types";
 type Octokit = InstanceType<typeof ProbotOctokit>;
 
 const PLUGIN_CHANGE = "plugin change";
+const PACKAGE_CHANGE = "package change";
+const DEPENDENCY_CHANGE = "dependency change";
 const READY_TO_MERGE = "ready to merge";
 
 const TEAM = {
@@ -23,15 +25,37 @@ export = (app: Application) => {
 		let { data: labelList } = await github.issues.listLabelsOnIssue(context.issue());
 		let labels = new Set(labelList.map(l => l.name));
 
-		if (labels.has(READY_TO_MERGE)) {
-			github.issues.removeLabel(context.issue({ name: READY_TO_MERGE }));
-		}
+		const setHasLabel = async (condition: boolean, label: string) => {
+			if (condition && !labels.has(label)) {
+				await github.issues.addLabels(context.issue({ labels: [label] }));
+			} else if (!condition && labels.has(label)) {
+				await github.issues.removeLabel(context.issue({ name: label }));
+			}
+		};
 
-		let files = (await github.pulls.listFiles(context.pullRequest()))
+		await setHasLabel(false, READY_TO_MERGE);
+
+		let pluginFiles: PullsListFilesResponseData = [];
+		let dependencyFiles: PullsListFilesResponseData = [];
+		let otherFiles: PullsListFilesResponseData = [];
+		(await github.pulls.listFiles(context.pullRequest()))
 			.data
-			.filter(f => f.filename.startsWith("plugins/"));
+			.forEach(f => {
+				if (f.filename.startsWith("plugins/")) {
+					pluginFiles.push(f);
+				} else if (f.filename == "package/verification-template/build.gradle"
+					|| f.filename == "package/verification-template/gradle/verification-metadata.xml") {
+						dependencyFiles.push(f);
+				} else {
+					otherFiles.push(f);
+				}
+			});
 
-		let difftext = (await Promise.all(files.map(async file => {
+		await setHasLabel(pluginFiles.length > 0, PLUGIN_CHANGE);
+		await setHasLabel(dependencyFiles.length > 0, DEPENDENCY_CHANGE);
+		await setHasLabel(otherFiles.length > 0, PACKAGE_CHANGE);
+
+		let difftext = (await Promise.all(pluginFiles.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
 			if (file.status == "removed") {
 				return `Removed \`${pluginName}\` plugin`;
@@ -72,10 +96,8 @@ https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin
 			}
 		}))).join("\n\n");
 
-		if (difftext && !labels.has(PLUGIN_CHANGE)) {
-			await github.issues.addLabels(context.issue({ labels: [PLUGIN_CHANGE] }));
-		} else if (!difftext && labels.has(PLUGIN_CHANGE)) {
-			await github.issues.removeLabel(context.issue({ name: PLUGIN_CHANGE }));
+		if (dependencyFiles.length > 0 || otherFiles.length > 0) {
+			difftext = "**Includes non-plugin changes**\n\n" + difftext;
 		}
 
 		let marker = "<!-- rlphc -->";
