@@ -2,6 +2,8 @@ import { Application, ProbotOctokit } from "probot";
 import { OctokitResponse, PullsListFilesResponseData } from "@octokit/types";
 type Octokit = InstanceType<typeof ProbotOctokit>;
 
+const NEW_PLUGIN = "plugin added";
+const REMOVE_PLUGIN = "plugin removed";
 const PLUGIN_CHANGE = "plugin change";
 const PACKAGE_CHANGE = "package change";
 const DEPENDENCY_CHANGE = "dependency change";
@@ -51,9 +53,12 @@ export = (app: Application) => {
 				}
 			});
 
-		await setHasLabel(pluginFiles.length > 0, PLUGIN_CHANGE);
 		await setHasLabel(dependencyFiles.length > 0, DEPENDENCY_CHANGE);
 		await setHasLabel(otherFiles.length > 0, PACKAGE_CHANGE);
+
+		await setHasLabel(pluginFiles.some(f => f.status == "added"), NEW_PLUGIN);
+		await setHasLabel(pluginFiles.some(f => f.status == "modified"), PLUGIN_CHANGE);
+		await setHasLabel(pluginFiles.some(f => f.status == "removed"), REMOVE_PLUGIN);
 
 		let difftext = (await Promise.all(pluginFiles.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
