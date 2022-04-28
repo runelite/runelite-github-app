@@ -60,10 +60,11 @@ export = (app: Application) => {
 		await setHasLabel(pluginFiles.some(f => f.status == "modified"), PLUGIN_CHANGE);
 		await setHasLabel(pluginFiles.some(f => f.status == "removed"), REMOVE_PLUGIN);
 
-		let difftext = (await Promise.all(pluginFiles.map(async file => {
+		let diffLines: string[] = [];
+		await Promise.all(pluginFiles.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
 			if (file.status == "removed") {
-				return `Removed \`${pluginName}\` plugin`;
+				diffLines.push(`Removed \`${pluginName}\` plugin`);
 			}
 			let readKV = (res: OctokitResponse<string>) => res.data.split("\n")
 				.map(i => /([^=]+)=(.*)/.exec(i))
@@ -87,19 +88,20 @@ export = (app: Application) => {
 			if (file.status == "modified") {
 				let oldPlugin = readKV(await github.request(`https://github.com/${context.repo().owner}/${context.repo().repo}/raw/master/plugins/${pluginName}`));
 				let oldPluginURL = extractURL(oldPlugin.repository);
-				return `\`${pluginName}\`: [${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`;
+				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`);
 			} else if (file.status == "added") {
-				return `New plugin \`${pluginName}\`: https://github.com/${user}/${repo}/tree/${newPlugin.commit}`;
+				diffLines.push(`New plugin \`${pluginName}\`: https://github.com/${user}/${repo}/tree/${newPlugin.commit}`);
 			} else if (file.status == "renamed") {
 				let oldPluginName = ((file as any).previous_filename as string).replace("plugins/", "");
 				let oldPlugin = readKV(await github.request(`https://github.com/${context.repo().owner}/${context.repo().repo}/raw/master/plugins/${oldPluginName}`));
 				let oldPluginURL = extractURL(oldPlugin.repository);
-				return `\`${oldPluginName}\` renamed to \`${pluginName}\`; this will cause all current installs to become uninstalled.
-[${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`;
+				diffLines.push(`\`${oldPluginName}\` renamed to \`${pluginName}\`; this will cause all current installs to become uninstalled.
+[${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`);
 			} else {
-				return `What is a \`${file.status}\`?`;
+				diffLines.push(`What is a \`${file.status}\`?`);
 			}
-		}))).join("\n\n");
+		}));
+		let difftext = diffLines.join("\n\n");
 
 		if (dependencyFiles.length > 0 || otherFiles.length > 0) {
 			difftext = "**Includes non-plugin changes**\n\n" + difftext;
