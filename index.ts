@@ -5,6 +5,7 @@ type Octokit = InstanceType<typeof ProbotOctokit>;
 const NEW_PLUGIN = "plugin added";
 const REMOVE_PLUGIN = "plugin removed";
 const PLUGIN_CHANGE = "plugin change";
+const NON_AUTHOR_PLUGIN_CHANGE = "non-author plugin change";
 const PACKAGE_CHANGE = "package change";
 const DEPENDENCY_CHANGE = "dependency change";
 const READY_TO_MERGE = "ready to merge";
@@ -61,6 +62,7 @@ export = (app: Application) => {
 		await setHasLabel(pluginFiles.some(f => f.status == "removed"), REMOVE_PLUGIN);
 
 		let diffLines: string[] = [];
+		let changedPluginAuthors: Set<string> = new Set();
 		await Promise.all(pluginFiles.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
 			if (file.status == "removed") {
@@ -85,9 +87,22 @@ export = (app: Application) => {
 			};
 			let { user, repo } = extractURL(newPlugin.repository);
 
+			let sanitizeAuthor = (author: string) => author.trim().toLowerCase();
+			let addPluginAuthors = (authors?: string) => {
+				if (!authors) {
+					return;
+				}
+				authors.split(',')
+					.forEach(author => changedPluginAuthors.add(sanitizeAuthor(author)));
+			};
+			changedPluginAuthors.add(sanitizeAuthor(user));
+			addPluginAuthors(newPlugin.authors);
+
 			if (file.status == "modified") {
 				let oldPlugin = readKV(await github.request(`https://github.com/${context.repo().owner}/${context.repo().repo}/raw/master/plugins/${pluginName}`));
 				let oldPluginURL = extractURL(oldPlugin.repository);
+				changedPluginAuthors.add(sanitizeAuthor(oldPluginURL.user));
+				addPluginAuthors(oldPlugin.authors);
 				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`);
 			} else if (file.status == "added") {
 				diffLines.push(`New plugin \`${pluginName}\`: https://github.com/${user}/${repo}/tree/${newPlugin.commit}`);
@@ -102,6 +117,14 @@ export = (app: Application) => {
 			}
 		}));
 		let difftext = diffLines.join("\n\n");
+
+		const prAuthor = (await github.issues.get(context.issue())).data.user.login.toLowerCase();
+		if (!changedPluginAuthors.has(prAuthor)) {
+			difftext = "**Includes changes by non-author**\n\n" + difftext;
+			await setHasLabel(true, NON_AUTHOR_PLUGIN_CHANGE);
+		} else {
+			await setHasLabel(false, NON_AUTHOR_PLUGIN_CHANGE);
+		}
 
 		if (dependencyFiles.length > 0 || otherFiles.length > 0) {
 			difftext = "**Includes non-plugin changes**\n\n" + difftext;
