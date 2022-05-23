@@ -62,7 +62,8 @@ export = (app: Application) => {
 		await setHasLabel(pluginFiles.some(f => f.status == "removed"), REMOVE_PLUGIN);
 
 		let diffLines: string[] = [];
-		let changedPluginAuthors: Set<string> = new Set();
+		const prAuthor = (await github.issues.get(context.issue())).data.user.login.toLowerCase();
+		let nonAuthorChange = false;
 		await Promise.all(pluginFiles.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
 			if (file.status == "removed") {
@@ -87,6 +88,7 @@ export = (app: Application) => {
 			};
 			let { user, repo } = extractURL(newPlugin.repository);
 
+			let changedPluginAuthors: Set<string> = new Set();
 			let sanitizeAuthor = (author: string) => author.trim().toLowerCase();
 			let addPluginAuthors = (authors?: string) => {
 				if (!authors) {
@@ -115,11 +117,12 @@ export = (app: Application) => {
 			} else {
 				diffLines.push(`What is a \`${file.status}\`?`);
 			}
+
+			nonAuthorChange ||= changedPluginAuthors.has(prAuthor);
 		}));
 		let difftext = diffLines.join("\n\n");
 
-		const prAuthor = (await github.issues.get(context.issue())).data.user.login.toLowerCase();
-		if (!changedPluginAuthors.has(prAuthor)) {
+		if (nonAuthorChange) {
 			difftext = "**Includes changes by non-author**\n\n" + difftext;
 			await setHasLabel(true, NON_AUTHOR_PLUGIN_CHANGE);
 		} else {
