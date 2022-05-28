@@ -119,7 +119,7 @@ export = (app: Application) => {
 		let difftext = diffLines.join("\n\n");
 
 		const prAuthor = (await github.issues.get(context.issue())).data.user.login.toLowerCase();
-		if (!changedPluginAuthors.has(prAuthor)) {
+		if (changedPluginAuthors.size > 0 && !changedPluginAuthors.has(prAuthor)) {
 			difftext = "**Includes changes by non-author**\n\n" + difftext;
 			await setHasLabel(true, NON_AUTHOR_PLUGIN_CHANGE);
 		} else {
