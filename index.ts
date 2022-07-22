@@ -119,7 +119,7 @@ export = (app: Probot) => {
 				diffLines.push(`What is a \`${file.status}\`?`);
 			}
 
-			nonAuthorChange ||= changedPluginAuthors.has(prAuthor);
+			nonAuthorChange ||= !changedPluginAuthors.has(prAuthor);
 		}));
 		let difftext = diffLines.join("\n\n");
 
