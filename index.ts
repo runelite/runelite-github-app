@@ -1,6 +1,7 @@
-import { Application, ProbotOctokit } from "probot";
-import { OctokitResponse, PullsListFilesResponseData } from "@octokit/types";
+import { Probot, ProbotOctokit } from "probot";
+import { OctokitResponse, GetResponseTypeFromEndpointMethod } from "@octokit/types";
 type Octokit = InstanceType<typeof ProbotOctokit>;
+type PullsListFilesResponseData = GetResponseTypeFromEndpointMethod<Octokit["pulls"]["listFiles"]>["data"]
 
 const NEW_PLUGIN = "plugin added";
 const REMOVE_PLUGIN = "plugin removed";
@@ -21,9 +22,9 @@ if (process.env.TEAM_TOKEN) {
 	globalTeamGithub = new ProbotOctokit({auth: {token: process.env.TEAM_TOKEN}});
 }
 
-export = (app: Application) => {
+export = (app: Probot) => {
 	app.on(['pull_request.opened', 'pull_request.synchronize', 'pull_request.reopened'], async context => {
-		const github = context.github;
+		const github = context.octokit;
 
 		let { data: labelList } = await github.issues.listLabelsOnIssue(context.issue());
 		let labels = new Set(labelList.map(l => l.name));
@@ -62,7 +63,7 @@ export = (app: Application) => {
 		await setHasLabel(pluginFiles.some(f => f.status == "removed"), REMOVE_PLUGIN);
 
 		let diffLines: string[] = [];
-		const prAuthor = (await github.issues.get(context.issue())).data.user.login.toLowerCase();
+		const prAuthor = (await github.issues.get(context.issue())).data.user!.login.toLowerCase();
 		let nonAuthorChange = false;
 		await Promise.all(pluginFiles.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
@@ -136,7 +137,7 @@ export = (app: Application) => {
 		let marker = "<!-- rlphc -->";
 		let body = marker + "\n" + difftext;
 		let sticky = (await github.issues.listComments(context.issue()))
-			.data.find(c => c.body.startsWith(marker));
+			.data.find(c => c.body?.startsWith(marker));
 		if (sticky) {
 			await github.issues.updateComment(context.issue({ comment_id: sticky.id, body }));
 		} else if (difftext) {
@@ -145,7 +146,7 @@ export = (app: Application) => {
 	});
 
 	app.on(["pull_request_review.submitted"], async context => {
-		const github = context.github;
+		const github = context.octokit;
 		const teamGithub = globalTeamGithub || github;
 
 		let { data: labelList } = await github.issues.listLabelsOnIssue(context.issue());
@@ -160,11 +161,11 @@ export = (app: Application) => {
 		let members = new Set(memberList.map(m => m.login));
 
 		let reviewStates: { [key: string]: boolean } = {};
-		reviews.filter(r => members.has(r.user.login))
+		reviews.filter(r => r.user && members.has(r.user.login))
 			.forEach(r => {
 				let approved = r.state == "APPROVED" || r.body == "lgtm";
 				if (approved || (!approved && r.state != "COMMENTED")) {
-					reviewStates[r.user.login] = approved;
+					reviewStates[r.user!.login] = approved;
 				}
 			});
 		let unapproved = Object.keys(reviewStates).filter(k => !reviewStates[k]);
