@@ -10,6 +10,7 @@ const NON_AUTHOR_PLUGIN_CHANGE = "non-author plugin change";
 const PACKAGE_CHANGE = "package change";
 const DEPENDENCY_CHANGE = "dependency change";
 const READY_TO_MERGE = "ready to merge";
+const WAITING_FOR_AUTHOR = "waiting for author";
 
 const TEAM = {
 	org: "runelite",
@@ -179,6 +180,30 @@ export = (app: Probot) => {
 			if (!labels.has(READY_TO_MERGE)) {
 				await github.issues.addLabels(context.issue({ labels: [READY_TO_MERGE] }));
 			}
+		}
+	});
+
+	// if "waiting for author" is present, remove it when the author interacts
+	// reviewers still need to add the label manually themselves in the first place
+	app.on([
+		"pull_request.edited", 
+		"pull_request.opened",
+		"pull_request.reopened",
+		"pull_request.synchronize",
+		"issue_comment.created"
+	], async context => {
+		const github = context.octokit;
+		const prAuthor = (await github.issues.get(context.issue())).data.user!.login.toLowerCase();
+
+		if (context.payload.sender.login.toLowerCase() !== prAuthor) {
+			return;
+		}
+
+		let { data: labelList } = await github.issues.listLabelsOnIssue(context.issue());
+		let labels = new Set(labelList.map(l => l.name));
+
+		if (labels.has(WAITING_FOR_AUTHOR)) {
+			await github.issues.removeLabel(context.issue({ name: WAITING_FOR_AUTHOR }));
 		}
 	});
 }
