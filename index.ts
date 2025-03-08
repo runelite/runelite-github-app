@@ -7,7 +7,7 @@ const NEW_PLUGIN = "plugin added";
 const REMOVE_PLUGIN = "plugin removed";
 const PLUGIN_CHANGE = "plugin change";
 const NON_AUTHOR_PLUGIN_CHANGE = "non-author plugin change";
-const PLUGIN_REPO_CHANGED_USER = "plugin repo changed user";
+const PLUGIN_REPO_CHANGED = "plugin repo changed";
 const PACKAGE_CHANGE = "package change";
 const DEPENDENCY_CHANGE = "dependency change";
 const READY_TO_MERGE = "ready to merge";
@@ -108,7 +108,7 @@ export = (app: Probot) => {
 				let oldPluginURL = extractURL(oldPlugin.repository);
 				changedPluginAuthors.add(sanitizeAuthor(oldPluginURL.user));
 				addPluginAuthors(oldPlugin.authors);
-				if (oldPluginURL.user != user) {
+				if (oldPluginURL.user !== user || oldPluginURL.repo !== repo) {
 					pluginRepoChange = true;
 				}
 				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`);
@@ -138,9 +138,9 @@ export = (app: Probot) => {
 		if (pluginRepoChange)
 		{
 			difftext = "**Plugin repository has changed**\n\n" + difftext;
-			await setHasLabel(true, PLUGIN_REPO_CHANGED_USER);
+			await setHasLabel(true, PLUGIN_REPO_CHANGED);
 		} else {
-			await setHasLabel(false, PLUGIN_REPO_CHANGED_USER);
+			await setHasLabel(false, PLUGIN_REPO_CHANGED);
 		}
 
 		if (dependencyFiles.length > 0 || otherFiles.length > 0) {
