@@ -70,9 +70,6 @@ export = (app: Probot) => {
 		let pluginRepoChange = false;
 		await Promise.all(pluginFiles.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
-			if (file.status == "removed") {
-				diffLines.push(`Removed \`${pluginName}\` plugin`);
-			}
 			let readKV = (res: OctokitResponse<string>) => res.data.split("\n")
 				.map(i => /([^=]+)=(.*)/.exec(i))
 				.filter(i => i)
@@ -121,6 +118,13 @@ export = (app: Probot) => {
 				let oldPluginURL = extractURL(oldPlugin.repository);
 				diffLines.push(`\`${oldPluginName}\` renamed to \`${pluginName}\`; this will cause all current installs to become uninstalled.
 [${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`);
+			} else if (file.status === "removed") {
+				diffLines.push(`Removed \`${pluginName}\`; instead of removing the plugin hub manifest file, add the disabled flag with a corresponding reason.
+\`\`\`
+repository=...
+commit=...
+diabled=<Reason for disabling>
+\`\`\``);
 			} else {
 				diffLines.push(`What is a \`${file.status}\`?`);
 			}
