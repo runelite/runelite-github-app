@@ -123,7 +123,7 @@ export = (app: Probot) => {
 \`\`\`
 repository=...
 commit=...
-diabled=<Reason for disabling>
+disabled=<Reason for disabling>
 \`\`\``);
 			} else {
 				diffLines.push(`What is a \`${file.status}\`?`);
