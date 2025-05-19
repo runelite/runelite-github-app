@@ -112,6 +112,7 @@ export = (app: Probot) => {
 				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`);
 			} else if (file.status == "added") {
 				diffLines.push(`New plugin \`${pluginName}\`: https://github.com/${user}/${repo}/tree/${newPlugin.commit}`);
+				diffLines.push(`https://github.com/runelite/example-plugin/compare/master...${user}:${repo}:${newPlugin.commit}`);
 			} else if (file.status == "renamed") {
 				let oldPluginName = ((file as any).previous_filename as string).replace("plugins/", "");
 				let oldPlugin = readKV(await github.request(`https://github.com/${context.repo().owner}/${context.repo().repo}/raw/master/plugins/${oldPluginName}`));
