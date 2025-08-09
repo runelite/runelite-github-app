@@ -2,3 +2,5 @@ node_modules
 lib
 .env
 *.pem
+.idea
+**/*.iml
