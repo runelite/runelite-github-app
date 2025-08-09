@@ -109,7 +109,7 @@ export = (app: Probot) => {
 				if (oldPluginURL.user !== user || oldPluginURL.repo !== repo) {
 					pluginRepoChange = true;
 				}
-				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`);
+				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}..${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}..${user}:${newPlugin.commit})`);
 			} else if (file.status == "added") {
 				diffLines.push(`New plugin \`${pluginName}\`: https://github.com/${user}/${repo}/tree/${newPlugin.commit}`);
 			} else if (file.status == "renamed") {
@@ -117,7 +117,7 @@ export = (app: Probot) => {
 				let oldPlugin = readKV(await github.request(`https://github.com/${context.repo().owner}/${context.repo().repo}/raw/master/plugins/${oldPluginName}`));
 				let oldPluginURL = extractURL(oldPlugin.repository);
 				diffLines.push(`\`${oldPluginName}\` renamed to \`${pluginName}\`; this will cause all current installs to become uninstalled.
-[${oldPlugin.commit}...${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}...${user}:${newPlugin.commit})`);
+[${oldPlugin.commit}..${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}..${user}:${newPlugin.commit})`);
 			} else if (file.status === "removed") {
 				diffLines.push(`Removed \`${pluginName}\`; instead of removing the plugin hub manifest file, add the disabled flag with a corresponding reason.
 \`\`\`
