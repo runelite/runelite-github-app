@@ -24,6 +24,16 @@ if (process.env.TEAM_TOKEN) {
 	globalTeamGithub = new ProbotOctokit({auth: {token: process.env.TEAM_TOKEN}});
 }
 
+type SizeBucket = {label: string, maxSize: number};
+const SIZE_BUCKETS: SizeBucket[] = [ // not a dict to preserve ordering
+	{label: 'size-0', maxSize: 0},
+	{label: 'size-xs', maxSize: 25},
+	{label: 'size-s', maxSize: 250},
+	{label: 'size-m', maxSize: 1000},
+	{label: 'size-l', maxSize: 4000},
+	{label: 'size-xl', maxSize: 1e9},
+];
+
 export = (app: Probot) => {
 	app.on(['pull_request.opened', 'pull_request.synchronize', 'pull_request.reopened'], async context => {
 		const github = context.octokit;
@@ -65,6 +75,7 @@ export = (app: Probot) => {
 		await setHasLabel(pluginFiles.some(f => f.status == "removed"), REMOVE_PLUGIN);
 
 		let diffLines: string[] = [];
+		let diffSizes: number[] = [];
 		const prAuthor = (await github.issues.get(context.issue())).data.user!.login.toLowerCase();
 		let nonAuthorChange = false;
 		let pluginRepoChange = false;
@@ -110,6 +121,7 @@ export = (app: Probot) => {
 					pluginRepoChange = true;
 				}
 				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}..${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}..${user}:${newPlugin.commit})`);
+				diffSizes.push(await getDiffSize(github, user, repo, `${oldPluginURL.user}:${oldPlugin.commit}`, `${user}:${newPlugin.commit}`));
 			} else if (file.status == "added") {
 				diffLines.push(`New plugin \`${pluginName}\`: https://github.com/${user}/${repo}/tree/${newPlugin.commit}`);
 			} else if (file.status == "renamed") {
@@ -132,6 +144,13 @@ disabled=<Reason for disabling>
 			nonAuthorChange ||= !changedPluginAuthors.has(prAuthor);
 		}));
 		let difftext = diffLines.join("\n\n");
+
+		const totalSize = diffSizes.reduce((a, b) => a + b, 0);
+		const matchedBucket = isNaN(totalSize) ? undefined :
+			SIZE_BUCKETS.reduceRight((chosenBucket, nextBucket) => totalSize <= nextBucket.maxSize ? nextBucket : chosenBucket);
+		for (let bucket of SIZE_BUCKETS) {
+			await setHasLabel(bucket === matchedBucket, bucket.label);
+		}
 
 		if (nonAuthorChange) {
 			difftext = "**Includes changes by non-author**\n\n" + difftext;
@@ -203,7 +222,7 @@ disabled=<Reason for disabling>
 	// if "waiting for author" is present, remove it when the author interacts
 	// reviewers still need to add the label manually themselves in the first place
 	app.on([
-		"pull_request.edited", 
+		"pull_request.edited",
 		"pull_request.opened",
 		"pull_request.reopened",
 		"pull_request.synchronize",
@@ -223,4 +242,47 @@ disabled=<Reason for disabling>
 			await github.issues.removeLabel(context.issue({ name: WAITING_FOR_AUTHOR }));
 		}
 	});
+}
+
+async function getDiffSize(github: Octokit, owner: string, repo: string, ref1: string, ref2: string): Promise<number> {
+	// Note: GitHub's api only allows us to diff commits as if they're `...` (merge diff),
+	// despite the ui allowing comparisons via `..` (direct diff).
+	// Trying to use .. in the basehead returns 404.
+	// As far as I'm aware, it's impossible to get the equivalent of .. from the API endpoints.
+
+	let data;
+	try {
+		const response = await github.repos.compareCommitsWithBasehead({
+			owner: owner,
+			repo: repo,
+			basehead: `${ref1}...${ref2}`,
+		});
+		data = response.data;
+	} catch (e) {
+		// worth noting that this branch actually catches disparate histories for us,
+		// since github returns 404 when there is no merge base
+		return NaN;
+	}
+
+	if (data.status === 'identical') {
+		// this can happen if we're just renaming a repo or changing authors or something
+		return 0;
+	}
+
+	const expectedMergeBase = ref1.includes(':') ? ref1.substring(ref1.indexOf(':') + 1) : ref1;
+	if (data.merge_base_commit.sha !== expectedMergeBase || data.status !== 'ahead') {
+		// if the merge base is not ref1 then we have diverging history and can't determine size properly
+		return NaN;
+	}
+
+	if (!data.files) {
+		// unless this occurs when status === 'identical', it's probably just impossible to determine a proper diff
+		return NaN;
+	}
+
+	// Although the API paginates commits over a certain count,
+	// the diff tracked in data.files is a summary diff, i.e. it's not restricted to that page
+	// so we don't need to worry about traversing extra pages
+	return data.files.map(f => f.changes)
+		.reduce((a, b) => a + b, 0);
 }
