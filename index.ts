@@ -122,9 +122,9 @@ export = (app: Probot) => {
 				if (oldPluginURL.user !== user || oldPluginURL.repo !== repo) {
 					pluginRepoChange = true;
 				}
-        if (!!oldPlugin.warning && newPlugin.warning !== oldPlugin.warning) {
-          warningChange = true;
-        }
+				if (!!oldPlugin.warning && newPlugin.warning !== oldPlugin.warning) {
+					warningChange = true;
+				}
 				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}..${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}..${user}:${newPlugin.commit})`);
 				diffSizes.push(await getDiffSize(github, user, repo, `${oldPluginURL.user}:${oldPlugin.commit}`, `${user}:${newPlugin.commit}`));
 			} else if (file.status == "added") {
