@@ -112,7 +112,6 @@ export = (app: Probot) => {
 					.forEach(author => changedPluginAuthors.add(sanitizeAuthor(author)));
 			};
 			changedPluginAuthors.add(sanitizeAuthor(user));
-			addPluginAuthors(newPlugin.authors);
 
 			if (file.status == "modified") {
 				let oldPlugin = readKV(await github.request(`https://github.com/${context.repo().owner}/${context.repo().repo}/raw/master/plugins/${pluginName}`));
