@@ -7,8 +7,7 @@ const NEW_PLUGIN = "plugin added";
 const REMOVE_PLUGIN = "plugin removed";
 const PLUGIN_CHANGE = "plugin change";
 const NON_AUTHOR_PLUGIN_CHANGE = "non-author plugin change";
-const PLUGIN_REPO_CHANGED = "plugin repo changed";
-const WARNING_CHANGE = "warning change";
+const NON_COMMIT_PLUGIN_CHANGE = "non-commit plugin change";
 const PACKAGE_CHANGE = "package change";
 const DEPENDENCY_CHANGE = "dependency change";
 const READY_TO_MERGE = "ready to merge";
@@ -79,8 +78,7 @@ export = (app: Probot) => {
 		let diffSizes: number[] = [];
 		const prAuthor = (await github.issues.get(context.issue())).data.user!.login.toLowerCase();
 		let nonAuthorChange = false;
-		let pluginRepoChange = false;
-		let warningChange = false;
+		let nonCommitChange = false;
 		await Promise.all(pluginFiles.map(async file => {
 			let pluginName = file.filename.replace("plugins/", "");
 			let readKV = (res: OctokitResponse<string>) => res.data.split("\n")
@@ -118,11 +116,10 @@ export = (app: Probot) => {
 				let oldPluginURL = extractURL(oldPlugin.repository);
 				changedPluginAuthors.add(sanitizeAuthor(oldPluginURL.user));
 				addPluginAuthors(oldPlugin.authors);
-				if (oldPluginURL.user !== user || oldPluginURL.repo !== repo) {
-					pluginRepoChange = true;
-				}
-				if (!!oldPlugin.warning && newPlugin.warning !== oldPlugin.warning) {
-					warningChange = true;
+				if (Object.keys(oldPlugin).length !== Object.keys(newPlugin).length) {
+					nonCommitChange = true;
+				} else if (Object.keys(oldPlugin).some(k => k !== 'commit' && oldPlugin[k] !== newPlugin[k])) {
+					nonCommitChange = true;
 				}
 				diffLines.push(`\`${pluginName}\`: [${oldPlugin.commit}..${newPlugin.commit}](https://github.com/${oldPluginURL.user}/${oldPluginURL.repo}/compare/${oldPlugin.commit}..${user}:${newPlugin.commit})`);
 				diffSizes.push(await getDiffSize(github, user, repo, `${oldPluginURL.user}:${oldPlugin.commit}`, `${user}:${newPlugin.commit}`));
@@ -164,20 +161,11 @@ disabled=<Reason for disabling>
 			await setHasLabel(false, NON_AUTHOR_PLUGIN_CHANGE);
 		}
 
-		if (pluginRepoChange)
-		{
-			difftext = "**Plugin repository has changed**\n\n" + difftext;
-			await setHasLabel(true, PLUGIN_REPO_CHANGED);
+		if (nonCommitChange) {
+			difftext = "**Includes non-commit plugin change**\n\n" + difftext;
+			await setHasLabel(true, NON_COMMIT_PLUGIN_CHANGE);
 		} else {
-			await setHasLabel(false, PLUGIN_REPO_CHANGED);
-		}
-
-		if (warningChange)
-		{
-			difftext = "**Plugin warning has changed**\n\n" + difftext;
-			await setHasLabel(true, WARNING_CHANGE);
-		} else {
-			await setHasLabel(false, WARNING_CHANGE);
+			await setHasLabel(false, NON_COMMIT_PLUGIN_CHANGE);
 		}
 
 		if (dependencyFiles.length > 0 || otherFiles.length > 0) {
