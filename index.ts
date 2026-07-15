@@ -3,6 +3,8 @@ import { OctokitResponse, GetResponseTypeFromEndpointMethod } from "@octokit/typ
 type Octokit = InstanceType<typeof ProbotOctokit>;
 type PullsListFilesResponseData = GetResponseTypeFromEndpointMethod<Octokit["pulls"]["listFiles"]>["data"]
 
+const RLPHC_MARKER = "<!-- rlphc -->";
+
 const NEW_PLUGIN = "plugin added";
 const REMOVE_PLUGIN = "plugin removed";
 const PLUGIN_CHANGE = "plugin change";
@@ -12,6 +14,7 @@ const PACKAGE_CHANGE = "package change";
 const DEPENDENCY_CHANGE = "dependency change";
 const READY_TO_MERGE = "ready to merge";
 const WAITING_FOR_AUTHOR = "waiting for author";
+const BUILD_FAILED = "build failed";
 
 const TEAM = {
 	org: "runelite",
@@ -243,6 +246,69 @@ disabled=<Reason for disabling>
 			await github.issues.removeLabel(context.issue({ name: WAITING_FOR_AUTHOR }));
 		}
 	});
+
+  // Watch for build failures and add a label/instructions appropriately
+  app.on(["check_run.completed"], async (context) => {
+    const github = context.octokit;
+
+    if (context.payload.check_run.pull_requests.length === 0 || context.payload.check_run.name !== "build") {
+      return;
+    }
+
+    // No matter the webhook here (check_run, workflow_job, workflow_run)
+    // Octokit will not resolve an issue_number in context.issue() (nor a
+    // pull_number in context.pullRequest()) so we have to derive it ourselves
+    const issue = context.issue({ issue_number: context.payload.check_run.pull_requests[0].number });
+
+    if (context.payload.check_run.conclusion === "success") {
+      await setHasLabel(github, issue, false, BUILD_FAILED);
+    } else if (context.payload.check_run.conclusion === "failure") {
+      const link = context.payload.check_run.html_url;
+      const message = `**This submission has failed to build and requires action from the PR author.**
+
+Please inspect the [build output](${link}) which will explain the reason for failure. Once you have done so, update your plugin code as necessary and then update the commit hash in the marker file of your plugin hub submission to trigger a new build.
+
+You can repeat this process as many times as you need to until the build workflow succeeds.`;
+
+      await updateSticky(context.octokit, issue, message);
+      await setHasLabel(github, issue, true, BUILD_FAILED);
+    }
+  });
+}
+
+type IssueContext = {
+  issue_number: number;
+  owner: string;
+  repo: string;
+}
+
+async function updateSticky(
+  github: Octokit,
+  issue: IssueContext,
+  text: string,
+) {
+  const body = RLPHC_MARKER + "\n" + text;
+
+  const sticky = (
+    await github.issues.listComments(issue)
+  ).data.find((c) => c.body?.startsWith(RLPHC_MARKER));
+
+  if (sticky) {
+    await github.issues.updateComment({ ...issue, comment_id: sticky.id, body });
+  } else {
+    await github.issues.createComment({ ...issue, body });
+  }
+}
+
+async function setHasLabel(github:Octokit, issue: IssueContext, condition: boolean, label: string) {
+  const { data: labelList } = await github.issues.listLabelsOnIssue(issue);
+  const labels = new Set(labelList.map(l => l.name));
+
+  if (condition && !labels.has(label)) {
+    await github.issues.addLabels({ ...issue, labels: [label] });
+  } else if (!condition && labels.has(label)) {
+    await github.issues.removeLabel({ ...issue, name: label });
+  }
 }
 
 async function getDiffSize(github: Octokit, owner: string, repo: string, ref1: string, ref2: string): Promise<number> {
