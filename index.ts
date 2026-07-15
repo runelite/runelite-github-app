@@ -220,6 +220,20 @@ disabled=<Reason for disabling>
 		}
 	});
 
+	// auto-approve workflow runs for new contributors
+	app.on("workflow_run.requested", async context => {
+		const run = context.payload.workflow_run;
+		if (run.conclusion !== "action_required") {
+			return;
+		}
+
+		try {
+			await context.octokit.actions.approveWorkflowRun(context.repo({ run_id: run.id }));
+		} catch (e) {
+			console.log(`Error approving workflow run ${run.id}: ${e}`);
+		}
+	});
+
 	// if "waiting for author" is present, remove it when the author interacts
 	// reviewers still need to add the label manually themselves in the first place
 	app.on([
