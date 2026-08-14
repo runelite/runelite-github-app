@@ -239,6 +239,7 @@ disabled=<Reason for disabling>
 	app.on([
 		"pull_request.edited",
 		"pull_request.opened",
+		"pull_request.ready_for_review",
 		"pull_request.reopened",
 		"pull_request.synchronize",
 		"issue_comment.created"
